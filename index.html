@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Offline Music Player</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+    <style>
+      :root {
+        /* Default Theme: Dark (Red & Black) */
+        /* Colors */
+        --color-background: 0 0 0;
+        --color-surface: 17 24 39;
+        --color-primary: 241 245 249;
+        --color-accent: 255 0 0;
+        --color-text-primary: 241 245 249;
+        --color-text-secondary: 156 163 175;
+        --color-border: 255 0 0; /* Same as accent for this theme */
+
+        /* Typography Stacks */
+        --font-family-stack-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        --font-family-stack-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+        --font-family-stack-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        
+        /* Typography (active font) */
+        --font-family-sans: var(--font-family-stack-sans);
+        
+        /* Components */
+        --border-radius: 0.5rem; /* 8px */
+
+        /* Legacy/Compatibility */
+        --accent-color: var(--color-accent);
+        --text-color: var(--color-text-primary);
+        --bg-color: var(--color-background);
+        --scrollbar-color: var(--color-accent);
+      }
+      body {
+        background-color: rgb(var(--color-background));
+        color: rgb(var(--color-text-primary));
+        font-family: var(--font-family-sans);
+        -webkit-tap-highlight-color: transparent;
+      }
+      
+      /* THEME-AWARE UTILITY CLASSES */
+      .bg-background { background-color: rgb(var(--color-background)); }
+      .bg-surface { background-color: rgb(var(--color-surface)); }
+      .bg-accent { background-color: rgb(var(--color-accent)); }
+      .text-primary { color: rgb(var(--color-text-primary)); }
+      .text-secondary { color: rgb(var(--color-text-secondary)); }
+      .text-accent { color: rgb(var(--color-accent)); }
+      .border-theme { border-color: rgb(var(--color-border)); }
+      .ring-accent { --tw-ring-color: rgb(var(--color-accent)); }
+      .divide-theme > :not([hidden]) ~ :not([hidden]) {
+         border-color: rgb(var(--color-border));
+      }
+
+      /* COMPONENTS */
+      .btn {
+        padding: 0.5rem 1rem;
+        border-radius: var(--border-radius);
+        font-weight: 600;
+        transition: all 0.2s;
+        border: 2px solid transparent;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn-accent {
+        background-color: rgb(var(--color-accent));
+        color: rgb(var(--color-surface));
+      }
+       .btn-accent:hover:not(:disabled) {
+        opacity: 0.9;
+      }
+      /* Outline Button Style */
+      :root[data-button-style="outline"] .btn-accent {
+          background-color: transparent;
+          border-color: rgb(var(--color-accent));
+          color: rgb(var(--color-accent));
+      }
+      :root[data-button-style="outline"] .btn-accent:hover:not(:disabled) {
+          background-color: rgb(var(--color-accent) / 0.1);
+          opacity: 1;
+      }
+
+
+      .btn-secondary {
+        background-color: rgb(var(--color-text-secondary) / 0.2);
+        color: rgb(var(--color-text-primary));
+      }
+      .btn-secondary:hover:not(:disabled) {
+        background-color: rgb(var(--color-text-secondary) / 0.3);
+      }
+      
+      /* FORM ELEMENTS */
+      .input-base {
+        width: 100%;
+        background-color: rgb(var(--color-text-secondary) / 0.1);
+        border: 1px solid rgb(var(--color-text-secondary) / 0.2);
+        border-radius: var(--border-radius);
+        padding: 0.5rem 0.75rem;
+        color: rgb(var(--color-text-primary));
+      }
+      .input-base:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px rgb(var(--color-accent));
+        border-color: rgb(var(--color-accent));
+      }
+
+      input[type="range"] {
+        -webkit-appearance: none; appearance: none;
+        width: 100%; height: 6px;
+        background: rgb(var(--color-text-primary) / 0.2);
+        border-radius: 3px;
+        outline: none;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        width: 18px; height: 18px;
+        background-color: rgb(var(--color-accent));
+        border-radius: 50%;
+        cursor: pointer;
+        transition: background-color .2s ease-in-out;
+      }
+      input[type="range"]::-moz-range-thumb {
+        width: 18px; height: 18px;
+        background-color: rgb(var(--color-accent));
+        border-radius: 50%;
+        cursor: pointer; border: none;
+        transition: background-color .2s ease-in-out;
+      }
+       input[type="range"]::-webkit-slider-thumb:hover { background-color: rgb(var(--color-primary)); }
+      input[type="range"]::-moz-range-thumb:hover { background-color: rgb(var(--color-primary)); }
+
+      /* MISC */
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+      
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar { width: 8px; }
+      ::-webkit-scrollbar-track { background: rgb(var(--color-surface) / 0.5); }
+      ::-webkit-scrollbar-thumb {
+        background-color: rgb(var(--scrollbar-color));
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover { background-color: rgb(var(--color-primary)); }
+
+      /* Song Item Density */
+      .song-item {
+        transition: padding 0.2s ease-in-out;
+      }
+      .song-item-artwork {
+        transition: width 0.2s ease-in-out, height 0.2s ease-in-out;
+      }
+
+      :root[data-song-density="compact"] .song-item {
+          padding: 0.5rem 0.75rem; /* 8px 12px */
+      }
+      :root[data-song-density="compact"] .song-item-artwork {
+          width: 2.5rem; /* 40px */
+          height: 2.5rem; /* 40px */
+      }
+
+      :root[data-song-density="default"] .song-item {
+            padding: 0.75rem; /* 12px */
+      }
+      :root[data-song-density="default"] .song-item-artwork {
+          width: 3rem; /* 48px */
+          height: 3rem; /* 48px */
+      }
+      
+      :root[data-song-density="spacious"] .song-item {
+          padding: 1.25rem; /* 20px */
+      }
+      :root[data-song-density="spacious"] .song-item-artwork {
+          width: 3.5rem; /* 56px */
+          height: 3.5rem; /* 56px */
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "idb": "https://aistudiocdn.com/idb@^8.0.3",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.20.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

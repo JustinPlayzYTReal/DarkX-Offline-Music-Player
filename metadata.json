@@ -1,0 +1,5 @@
+{
+  "name": "DarkX-Offline Music Player",
+  "description": "An offline music player for iOS and Android, allowing you to import and listen to your own music files without an internet connection. Features customizable themes and a clean, modern interface.",
+  "requestFramePermissions": []
+}
