@@ -6,9 +6,10 @@ interface SongItemProps {
   song: Song;
   onClick: () => void;
   onMoreClick: (song: Song) => void;
+  isEditing?: boolean;
 }
 
-const SongItem: React.FC<SongItemProps> = ({ song, onClick, onMoreClick }) => {
+const SongItem: React.FC<SongItemProps> = ({ song, onClick, onMoreClick, isEditing = false }) => {
   return (
     <div
       className="flex items-center space-x-4 song-item"
@@ -29,6 +30,7 @@ const SongItem: React.FC<SongItemProps> = ({ song, onClick, onMoreClick }) => {
           <p className="text-sm text-secondary truncate">{song.artist}</p>
         </div>
       </div>
+      {!isEditing && (
        <button 
         onClick={(e) => {
             e.stopPropagation();
@@ -39,6 +41,7 @@ const SongItem: React.FC<SongItemProps> = ({ song, onClick, onMoreClick }) => {
        >
           <MoreVerticalIcon className="w-6 h-6" />
       </button>
+      )}
     </div>
   );
 };

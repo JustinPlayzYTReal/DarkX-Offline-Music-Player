@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useRef, useEffect, useCallb
 import { Song } from '../types';
 import { addRecentlyPlayed } from '../services/musicService';
 
+type RepeatMode = 'off' | 'all' | 'one';
+
 interface PlayerContextType {
   currentSong: Song | null;
   isPlaying: boolean;
@@ -12,6 +14,8 @@ interface PlayerContextType {
   seek: (time: number) => void;
   playNext: () => void;
   playPrev: () => void;
+  repeatMode: RepeatMode;
+  toggleRepeatMode: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -22,6 +26,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
   const audioRef = useRef<HTMLAudioElement>(new Audio());
 
   const playSong = useCallback(async (song: Song, newPlaylist: Song[] = []) => {
@@ -59,13 +64,26 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [isPlaying, currentSong]);
 
+  const toggleRepeatMode = useCallback(() => {
+    setRepeatMode(prev => {
+      if (prev === 'off') return 'all';
+      if (prev === 'all') return 'one';
+      return 'off';
+    });
+  }, []);
+
   const playNext = useCallback(() => {
-    if (!currentSong) return;
+    if (!currentSong || playlist.length === 0) return;
     const currentIndex = playlist.findIndex(s => s.id === currentSong.id);
+    
     if (currentIndex !== -1 && currentIndex < playlist.length - 1) {
+      // Normal case: play next song in playlist
       playSong(playlist[currentIndex + 1], playlist);
+    } else if (repeatMode === 'all' && playlist.length > 0) {
+      // End of playlist, repeat all is on: play first song
+      playSong(playlist[0], playlist);
     }
-  }, [currentSong, playlist, playSong]);
+  }, [currentSong, playlist, playSong, repeatMode]);
 
   const playPrev = useCallback(() => {
     if (!currentSong) return;
@@ -90,7 +108,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     const handleTimeUpdate = () => setProgress(audio.currentTime);
     const handleDurationChange = () => setDuration(audio.duration);
-    const handleEnded = () => playNext();
+    const handleEnded = () => {
+        if (repeatMode === 'one') {
+            audio.currentTime = 0;
+            audio.play();
+        } else {
+            playNext();
+        }
+    };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('durationchange', handleDurationChange);
@@ -101,7 +126,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [playNext]);
+  }, [playNext, repeatMode]);
 
   // Media Session API for background playback and OS controls
   useEffect(() => {
@@ -146,6 +171,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     seek,
     playNext,
     playPrev,
+    repeatMode,
+    toggleRepeatMode,
   };
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

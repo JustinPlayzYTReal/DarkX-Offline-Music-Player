@@ -1,20 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Song } from '../types';
-import { getRecentlyPlayed } from '../services/musicService';
+import { getRecentlyPlayed, onRecentUpdate } from '../services/musicService';
 import SongList from './SongList';
 
 const HomeScreen: React.FC = () => {
   const [recentlyPlayed, setRecentlyPlayed] = useState<Song[]>([]);
 
   const fetchSongs = useCallback(async () => {
-    const songs = await getRecentlyPlayed();
-    setRecentlyPlayed(songs);
+    try {
+        const songs = await getRecentlyPlayed();
+        setRecentlyPlayed(songs);
+    } catch (error) {
+        console.error("Failed to fetch recently played songs:", error);
+    }
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(fetchSongs, 2000); // Poll for changes
     fetchSongs(); // Initial fetch
-    return () => clearInterval(interval);
+    const unsubscribe = onRecentUpdate(fetchSongs); // Subscribe to updates
+    return unsubscribe; // Unsubscribe on unmount
   }, [fetchSongs]);
 
   return (

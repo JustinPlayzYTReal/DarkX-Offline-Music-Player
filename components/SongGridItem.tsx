@@ -6,9 +6,10 @@ interface SongGridItemProps {
   song: Song;
   onClick: () => void;
   onMoreClick: (song: Song) => void;
+  isEditing?: boolean;
 }
 
-const SongGridItem: React.FC<SongGridItemProps> = ({ song, onClick, onMoreClick }) => {
+const SongGridItem: React.FC<SongGridItemProps> = ({ song, onClick, onMoreClick, isEditing = false }) => {
   return (
     <div
       className="flex flex-col text-left group"
@@ -17,7 +18,7 @@ const SongGridItem: React.FC<SongGridItemProps> = ({ song, onClick, onMoreClick 
       <div 
         className="aspect-square w-full rounded-md overflow-hidden mb-2 shadow-lg relative cursor-pointer"
         onClick={onClick}
-        aria-label={`Play ${song.title} by ${song.artist}`}
+        aria-label={isEditing ? `Edit ${song.title}` : `Play ${song.title} by ${song.artist}`}
         style={{ borderRadius: 'var(--border-radius)' }}
       >
         {song.artwork ? (
@@ -27,6 +28,7 @@ const SongGridItem: React.FC<SongGridItemProps> = ({ song, onClick, onMoreClick 
             <AlbumIcon className="w-1/2 h-1/2 text-secondary" />
           </div>
         )}
+        {!isEditing && (
          <button 
             onClick={(e) => {
                 e.stopPropagation();
@@ -37,6 +39,7 @@ const SongGridItem: React.FC<SongGridItemProps> = ({ song, onClick, onMoreClick 
         >
             <MoreVerticalIcon className="w-5 h-5" />
         </button>
+        )}
       </div>
       <div className="w-full">
         <p className="font-semibold truncate text-accent text-sm">{song.title}</p>

@@ -3,7 +3,7 @@ import { PlayerProvider } from './context/PlayerContext';
 import HomeScreen from './components/HomeScreen';
 import SongsScreen from './components/SongsScreen';
 import ImportScreen from './components/ImportScreen';
-import SettingsScreen from './components/SettingsScreen';
+import SettingsScreen from './SettingsScreen';
 import BottomNav from './components/BottomNav';
 import PlayerBar from './components/PlayerBar';
 import { useTheme } from './hooks/useTheme';

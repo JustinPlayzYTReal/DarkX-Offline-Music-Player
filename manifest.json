@@ -1,0 +1,24 @@
+{
+  "name": "DarkX-Offline Music Player",
+  "short_name": "DarkX Music",
+  "description": "An offline music player for iOS and Android, allowing you to import and listen to your own music files without an internet connection. Features customizable themes and a clean, modern interface.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#ff0000",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

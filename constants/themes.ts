@@ -29,7 +29,7 @@ const sharedTypography = {
 };
 
 const sharedComponents = {
-    borderRadius: '0.5rem',
+    borderRadius: '8px',
     buttonStyle: 'filled' as const,
     songItemDensity: 'default' as const,
 }

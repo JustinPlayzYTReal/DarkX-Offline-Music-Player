@@ -7,6 +7,8 @@ import {
   SkipForwardIcon,
   AlbumIcon,
   ChevronDownIcon,
+  RepeatIcon,
+  RepeatOneIcon,
 } from '../constants';
 
 const PlayerBar: React.FC = () => {
@@ -19,6 +21,8 @@ const PlayerBar: React.FC = () => {
     seek,
     playNext,
     playPrev,
+    repeatMode,
+    toggleRepeatMode,
   } = usePlayer();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -121,11 +125,23 @@ const PlayerBar: React.FC = () => {
             </div>
             
             <div className="flex items-center justify-around text-accent">
+                <button
+                    onClick={toggleRepeatMode}
+                    className={`p-2 transition-colors ${repeatMode === 'off' ? 'text-secondary' : 'text-accent'}`}
+                    aria-label={`Repeat mode: ${repeatMode}`}
+                >
+                    {repeatMode === 'one' ? (
+                        <RepeatOneIcon className="w-8 h-8" />
+                    ) : (
+                        <RepeatIcon className="w-8 h-8" />
+                    )}
+                </button>
                 <button onClick={playPrev} className="p-2"><SkipBackIcon className="w-10 h-10" /></button>
                 <button onClick={togglePlay} className="p-2">
                     {isPlaying ? <PauseIcon className="w-16 h-16" /> : <PlayIcon className="w-16 h-16" />}
                 </button>
                 <button onClick={playNext} className="p-2"><SkipForwardIcon className="w-10 h-10" /></button>
+                <div className="w-8 h-8 p-2" /> {/* Placeholder for shuffle button */}
             </div>
         </div>
     </div>

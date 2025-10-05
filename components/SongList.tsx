@@ -9,15 +9,28 @@ import AddToPlaylistModal from './AddToPlaylistModal';
 interface SongListProps {
   songs: Song[];
   title: string;
+  isEditing?: boolean;
+  onEditClick?: (song: Song) => void;
 }
 
-const SongList: React.FC<SongListProps> = ({ songs, title }) => {
+// FIX: Updated the default value for `onEditClick` to a function that accepts an argument.
+// This resolves the type error where `onEditClick(song)` was called but the default
+// prop `() => {}` did not accept any arguments.
+const SongList: React.FC<SongListProps> = ({ songs, title, isEditing = false, onEditClick = (song) => {} }) => {
   const { playSong } = usePlayer();
   const { layout } = useTheme();
   const [songToAddToPlaylist, setSongToAddToPlaylist] = useState<Song | null>(null);
 
   const handleOpenAddToPlaylistModal = (song: Song) => {
     setSongToAddToPlaylist(song);
+  };
+
+  const handleItemClick = (song: Song) => {
+    if (isEditing) {
+      onEditClick(song);
+    } else {
+      playSong(song, songs);
+    }
   };
 
   if (songs.length === 0) {
@@ -39,8 +52,9 @@ const SongList: React.FC<SongListProps> = ({ songs, title }) => {
               <SongGridItem 
                 key={song.id} 
                 song={song} 
-                onClick={() => playSong(song, songs)}
-                onMoreClick={handleOpenAddToPlaylistModal} 
+                onClick={() => handleItemClick(song)}
+                onMoreClick={handleOpenAddToPlaylistModal}
+                isEditing={isEditing}
               />
             ))}
           </div>
@@ -50,8 +64,9 @@ const SongList: React.FC<SongListProps> = ({ songs, title }) => {
               <SongItem 
                 key={song.id} 
                 song={song} 
-                onClick={() => playSong(song, songs)}
+                onClick={() => handleItemClick(song)}
                 onMoreClick={handleOpenAddToPlaylistModal}
+                isEditing={isEditing}
               />
             ))}
           </div>

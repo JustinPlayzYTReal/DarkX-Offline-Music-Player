@@ -8,6 +8,30 @@ const PLAYLISTS_STORE = 'playlists';
 
 let dbPromise: Promise<IDBPDatabase>;
 
+// --- Event Emitter System ---
+const songListeners = new Set<() => void>();
+const recentListeners = new Set<() => void>();
+
+export const onSongsUpdate = (callback: () => void) => {
+    songListeners.add(callback);
+    return () => songListeners.delete(callback); // Return an unsubscribe function
+};
+
+const notifySongsUpdate = () => {
+    songListeners.forEach(cb => cb());
+};
+
+export const onRecentUpdate = (callback: () => void) => {
+    recentListeners.add(callback);
+    return () => recentListeners.delete(callback); // Return an unsubscribe function
+};
+
+const notifyRecentUpdate = () => {
+    recentListeners.forEach(cb => cb());
+};
+// --- End Event Emitter System ---
+
+
 const initDB = () => {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, 3, {
@@ -36,12 +60,40 @@ export const addSongToDB = async (song: Song, audioBlob: Blob): Promise<void> =>
   // Store a flat object so the keyPath ('id') is at the top level.
   await tx.store.put({ ...songData, audioBlob });
   await tx.done;
+  notifySongsUpdate(); // Notify that the song list has changed
+};
+
+export const updateSongInDB = async (updatedSong: Song): Promise<void> => {
+  const db = await initDB();
+  const tx = db.transaction(SONGS_STORE, 'readwrite');
+  const store = tx.objectStore(SONGS_STORE);
+  
+  const existingRecord = await store.get(updatedSong.id);
+  if (!existingRecord) {
+    console.error("Song not found in DB for updating:", updatedSong.id);
+    return;
+  }
+  
+  // Exclude the transient URL from the object to be saved.
+  const { url, ...metadataToSave } = updatedSong;
+
+  const updatedRecord = {
+    ...metadataToSave, // This has id, title, artist, album, duration, artwork
+    audioBlob: existingRecord.audioBlob, // Preserve the original audio data
+  };
+
+  await store.put(updatedRecord);
+  await tx.done;
+  notifySongsUpdate();
 };
 
 export const getAllSongs = async (): Promise<Song[]> => {
   const db = await initDB();
   const items = await db.getAll(SONGS_STORE);
-  return items.map(item => {
+  // Filter out any malformed items that might be missing the audio data.
+  const validItems = items.filter(item => item && item.audioBlob);
+
+  return validItems.map(item => {
     // Reconstruct the song object from the flat DB structure
     const { audioBlob, ...songData } = item;
     return {
@@ -54,12 +106,16 @@ export const getAllSongs = async (): Promise<Song[]> => {
 export const getSongById = async (id: string): Promise<Song | null> => {
     const db = await initDB();
     const item = await db.get(SONGS_STORE, id);
-    if (!item) return null;
+    if (!item || !item.audioBlob) return null;
+    
     // Reconstruct the song object from the flat DB structure
     const { audioBlob, ...songData } = item;
     return {
         ...(songData as Omit<Song, 'url'>),
-        url: URL.createObjectURL(item.audioBlob),
+        // FIX: Use the destructured 'audioBlob' variable which holds the data.
+        // The previous code used `item.audioBlob`, which while valid, is less clean
+        // than using the already-destructured variable.
+        url: URL.createObjectURL(audioBlob),
     };
 };
 
@@ -81,6 +137,7 @@ export const addRecentlyPlayed = async (song: Song): Promise<void> => {
         cursor = await cursor.continue();
     }
     await tx.done;
+    notifyRecentUpdate(); // Notify that the recently played list has changed
 };
 
 export const getRecentlyPlayed = async (): Promise<Song[]> => {

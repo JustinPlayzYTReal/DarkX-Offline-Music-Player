@@ -1,103 +1,141 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { addSongToDB } from '../services/musicService';
 import { Song } from '../types';
-import { FolderIcon, LinkIcon } from '../constants';
+import { FolderIcon, UploadIcon } from '../constants';
 import EditSongModal from './EditSongModal';
 import { Screen } from '../App';
 
-declare const jsmediatags: any;
+// It's safer to access jsmediatags via the window object to avoid ReferenceError
+// if the script fails to load.
+declare global {
+  interface Window {
+    jsmediatags: any;
+  }
+}
 
 interface ImportScreenProps {
   setActiveScreen: (screen: Screen) => void;
 }
 
+const getAudioDuration = (file: File): Promise<number> => {
+  return new Promise((resolve) => {
+    const audio = document.createElement('audio');
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      URL.revokeObjectURL(audio.src);
+      resolve(audio.duration);
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(audio.src);
+      console.warn(`Could not determine duration for ${file.name}`);
+      resolve(0); // Resolve with 0 if it fails, allowing import to continue.
+    };
+    audio.src = URL.createObjectURL(file);
+  });
+};
+
+const readId3Tags = (file: File): Promise<any> => {
+  return new Promise((resolve) => {
+    if (typeof window.jsmediatags === 'undefined') {
+      console.error('jsmediatags library not loaded.');
+      resolve({}); // Resolve with empty object if library is missing
+      return;
+    }
+    window.jsmediatags.read(file, {
+      onSuccess: (tag: any) => resolve(tag.tags || {}),
+      onError: (error: any) => {
+        console.log('No ID3 tags found or error reading tags for', file.name, error);
+        resolve({}); // Resolve with empty object on error
+      },
+    });
+  });
+};
+
+
 const ImportScreen: React.FC<ImportScreenProps> = ({ setActiveScreen }) => {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('');
-  const [url, setUrl] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
+  
   const filesRef = useRef<File[]>([]);
   const currentIndexRef = useRef(0);
+  const successfulImportsRef = useRef(0);
   
   const [songToEdit, setSongToEdit] = useState<Song | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processNextFile = useCallback(async () => {
     if (currentIndexRef.current >= filesRef.current.length) {
       setImporting(false);
-      setMessage(`${filesRef.current.length} song(s) imported successfully!`);
+      const successCount = successfulImportsRef.current;
+      const totalCount = filesRef.current.length;
+      
+      if (totalCount > 0) {
+           setMessage(`${successCount} of ${totalCount} song(s) imported successfully!`);
+      }
+
       setProgress(100);
       setTimeout(() => {
         setMessage('');
-        setActiveScreen('songs');
-      }, 1500);
+        if (successCount > 0) {
+          setActiveScreen('songs');
+        }
+      }, 2000);
       return;
     }
 
     const file = filesRef.current[currentIndexRef.current];
     setMessage(`Processing ${currentIndexRef.current + 1} of ${filesRef.current.length}: ${file.name}`);
-
+    
     try {
-      const tags = await new Promise<any>((resolve, reject) => {
-        jsmediatags.read(file, { onSuccess: resolve, onError: reject });
-      });
+        const [duration, tags] = await Promise.all([
+            getAudioDuration(file),
+            readId3Tags(file)
+        ]);
+        
+        const { title, artist, album, picture } = tags;
+        let artwork;
+        if (picture) {
+            const { data, format } = picture;
+            const base64String = data.reduce((acc: string, byte: number) => acc + String.fromCharCode(byte), '');
+            artwork = `data:${format};base64,${window.btoa(base64String)}`;
+        }
 
-      const { title, artist, album, picture } = tags.tags;
-      let artwork;
-      if (picture) {
-        const { data, format } = picture;
-        const base64String = data.reduce((acc: string, byte: number) => acc + String.fromCharCode(byte), '');
-        artwork = `data:${format};base64,${window.btoa(base64String)}`;
-      }
-
-      const audio = new Audio(URL.createObjectURL(file));
-      const duration = await new Promise<number>(resolve => {
-        audio.onloadedmetadata = () => {
-          if (audio.duration === Infinity) {
-             audio.currentTime = 1e101;
-             audio.ontimeupdate = () => {
-               audio.ontimeupdate = null;
-               audio.currentTime = 0;
-               resolve(audio.duration);
-             };
-          } else {
-             resolve(audio.duration);
-          }
+        const song: Song = {
+            id: `${title || file.name}-${artist || 'Unknown'}-${file.size}-${Math.random()}`,
+            title: title || file.name.replace(/\.[^/.]+$/, ""),
+            artist: artist || 'Unknown Artist',
+            album: album || 'Unknown Album',
+            duration,
+            artwork,
+            url: '', // Will be created from the blob upon playback
         };
-      });
 
-      const song: Song = {
-        id: `${title || file.name}-${artist || 'Unknown'}-${file.size}-${Math.random()}`,
-        title: title || file.name.replace(/\.[^/.]+$/, ""),
-        artist: artist || 'Unknown Artist',
-        album: album || 'Unknown Album',
-        duration,
-        artwork,
-        url: '',
-      };
+        setSongToEdit(song);
+        setIsModalOpen(true);
 
-      setSongToEdit(song);
-      setIsModalOpen(true);
     } catch (error) {
-      console.error('Error reading tags for', file.name, error);
-      setMessage(`Skipping ${file.name} (metadata error)`);
-      moveToNextFile();
+        console.error(`Critical error processing ${file.name}:`, error);
+        setMessage(`Error with ${file.name}. Skipping.`);
+        // Ensure we move to the next file even on unexpected errors
+        setTimeout(moveToNextFile, 1500);
     }
   }, [setActiveScreen]);
 
-  const moveToNextFile = () => {
+  const moveToNextFile = useCallback(() => {
       currentIndexRef.current++;
       setProgress((currentIndexRef.current / filesRef.current.length) * 100);
-      setTimeout(processNextFile, 100); // short delay for UI update
-  };
+      // Use setTimeout to allow UI to update before processing next file
+      setTimeout(processNextFile, 100);
+  }, [processNextFile]);
 
   const startImportProcess = (files: File[]) => {
     if (!files || files.length === 0) return;
 
     filesRef.current = Array.from(files);
     currentIndexRef.current = 0;
+    successfulImportsRef.current = 0;
     
     setImporting(true);
     setProgress(0);
@@ -105,43 +143,9 @@ const ImportScreen: React.FC<ImportScreenProps> = ({ setActiveScreen }) => {
     processNextFile();
   }
 
-  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    startImportProcess(event.target.files ? Array.from(event.target.files) : []);
-  };
-
-  const handleUrlImport = async () => {
-    if (!url) {
-        setMessage("Please enter a URL.");
-        setTimeout(() => setMessage(''), 2000);
-        return;
-    }
-
-    setImporting(true);
-    setProgress(0);
-    setMessage(`Downloading from URL...`);
-
-    try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
-        }
-        const blob = await response.blob();
-        
-        let fileName = url.substring(url.lastIndexOf('/') + 1);
-        // Clean up query parameters from filename
-        fileName = fileName.split('?')[0];
-        if (!fileName) {
-            fileName = `downloaded_song_${Date.now()}`;
-        }
-
-        const file = new File([blob], fileName, { type: blob.type });
-        startImportProcess([file]);
-
-    } catch (error) {
-        console.error("Error importing from URL:", error);
-        setMessage("Download failed. Check the URL and server permissions (CORS).");
-        setImporting(false);
-        setTimeout(() => setMessage(''), 3000);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      startImportProcess(Array.from(event.target.files));
     }
   };
 
@@ -154,8 +158,8 @@ const ImportScreen: React.FC<ImportScreenProps> = ({ setActiveScreen }) => {
     setMessage(`Saving ${updatedSong.title}...`);
 
     try {
-        const audioBlob = new Blob([currentFile], { type: currentFile.type });
-        await addSongToDB(updatedSong, audioBlob);
+        await addSongToDB(updatedSong, currentFile);
+        successfulImportsRef.current++;
     } catch (dbError) {
         console.error("Error saving song to DB:", dbError);
         setMessage(`Error saving ${updatedSong.title}`);
@@ -170,7 +174,7 @@ const ImportScreen: React.FC<ImportScreenProps> = ({ setActiveScreen }) => {
     setMessage(`Skipped ${filesRef.current[currentIndexRef.current].name}`);
     moveToNextFile();
   };
-
+  
   return (
     <>
       <div className="h-full p-4">
@@ -183,7 +187,7 @@ const ImportScreen: React.FC<ImportScreenProps> = ({ setActiveScreen }) => {
             <div className="w-full max-w-md text-center">
               <h2 className="text-2xl font-semibold text-accent mb-4">Importing...</h2>
               <div className="w-full bg-surface rounded-full h-2.5 border border-theme">
-                <div className="bg-accent h-2 rounded-full" style={{ width: `${progress}%` }}></div>
+                <div className="bg-accent h-2 rounded-full transition-width duration-300" style={{ width: `${progress}%` }}></div>
               </div>
               <p className="text-secondary mt-2 truncate">{message}</p>
             </div>
@@ -193,40 +197,25 @@ const ImportScreen: React.FC<ImportScreenProps> = ({ setActiveScreen }) => {
             <div className="bg-surface p-4 rounded-lg shadow-md border border-theme">
               <div className="flex items-center space-x-3 mb-3">
                 <FolderIcon className="w-8 h-8 text-accent" />
-                <h2 className="text-xl font-bold">Import from Device</h2>
+                <h2 className="text-xl font-bold">Import MP3 Files</h2>
               </div>
-              <p className="text-secondary mb-4">Select one or more audio files from your device to add to your library.</p>
-              <button onClick={() => fileInputRef.current?.click()} className="btn btn-accent w-full">
-                Select Files
-              </button>
+              <p className="text-secondary mb-4">Select one or more MP3 audio files from your device to add to your offline library.</p>
+              
               <input
                 type="file"
                 ref={fileInputRef}
-                onChange={handleFileImport}
+                onChange={handleFileChange}
                 className="hidden"
                 multiple
-                accept="audio/*"
+                accept=".mp3,audio/mpeg"
               />
-            </div>
-
-            <div className="bg-surface p-4 rounded-lg shadow-md border border-theme">
-              <div className="flex items-center space-x-3 mb-3">
-                <LinkIcon className="w-8 h-8 text-accent" />
-                <h2 className="text-xl font-bold">Import from URL</h2>
-              </div>
-              <p className="text-secondary mb-4">Enter a direct URL to an audio file. Note: This may not work for all links due to server restrictions (CORS).</p>
-              <div className="flex space-x-2">
-                  <input
-                      type="text"
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      placeholder="https://example.com/song.mp3"
-                      className="input-base flex-grow"
-                  />
-                  <button onClick={handleUrlImport} className="btn btn-secondary">
-                      Fetch
-                  </button>
-              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="btn btn-accent w-full flex items-center justify-center space-x-2"
+              >
+                <UploadIcon className="w-5 h-5" />
+                <span>Choose MP3 Files</span>
+              </button>
             </div>
           </div>
         )}
